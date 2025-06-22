@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assessment Agent</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        .container {
+            max-width: 960px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e0e0e0;
+        }
+        .btn-primary {
+            @apply bg-green-600 hover:bg-green-700 text-white font-semibold
+                   py-2 px-6 rounded-full border-0 text-sm cursor-pointer
+                   transition duration-300 ease-in-out shadow-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50;
+        }
+        .btn-secondary {
+            @apply bg-green-500 hover:bg-green-600 text-white font-semibold
+                   py-2 px-4 rounded-full border-0 text-sm cursor-pointer
+                   transition duration-300 ease-in-out shadow-sm focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-50;
+        }
+        .input-field {
+            /* Reverting to border-4 for cleaner look, now that width issue is primary */
+            @apply w-full p-3 border-4 border-black rounded-lg focus:ring-4 focus:ring-green-500 focus:border-green-500 placeholder-gray-400 transition duration-150 ease-in-out;
+        }
+        .input-field-wide {
+            /* Reverting to border-4, ensuring w-full and responsive width. */
+            /* max-width is crucial here to ensure it doesn't get squished */
+            @apply w-full p-3 border-4 border-black rounded-lg focus:ring-4 focus:ring-green-500 focus:border-green-500 placeholder-gray-400 transition duration-150 ease-in-out;
+            min-height: 120px; /* Keep height for writing space */
+            box-sizing: border-box; /* Ensure padding/border are included in width */
+        }
+        .select-field {
+            /* Reverting to border-4 */
+            @apply w-full p-3 border-4 border-black rounded-lg bg-white focus:ring-4 focus:ring-green-500 focus:border-green-500 transition duration-150 ease-in-out;
+        }
+        .section-title {
+            @apply text-2xl font-bold text-gray-800 mb-4 pb-2 border-b border-gray-200;
+        }
+        .card {
+            /* Ensure cards use full available width, minus padding */
+            @apply bg-gray-50 p-4 rounded-lg shadow-sm border border-gray-200 mb-4 w-full;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .message-box {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            display: none;
+        }
+        .message-box.error {
+            background-color: #f44336;
+        }
+        .evaluation-feedback-mcq.correct {
+            @apply text-green-700 font-semibold;
+        }
+        .evaluation-feedback-mcq.incorrect {
+            @apply text-red-700 font-semibold;
+        }
+        .evaluation-feedback-subj {
+            @apply text-gray-800;
+        }
+        .evaluation-feedback-subj .score {
+            @apply text-lg font-bold;
+        }
+        .evaluation-feedback-subj .feedback-text {
+            @apply text-base;
+        }
+        .evaluation-feedback-subj .skill-gap-text {
+            @apply text-sm text-gray-600;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-6 md:p-8">
+
+    <!-- Message Box -->
+    <div id="messageBox" class="message-box"></div>
+
+    <div class="container">
+        <h1 class="text-4xl font-extrabold text-center text-blue-700 mb-8">Assessment Agent</h1>
+
+        <!-- Input Section -->
+        <div class="mb-8 p-6 bg-blue-50 rounded-xl shadow-inner">
+            <h2 class="section-title text-blue-800">Generate Assessment</h2>
+            <div class="mb-4">
+                <label for="topicInput" class="block text-gray-700 text-sm font-medium mb-2">Topic Name:</label>
+                <input type="text" id="topicInput" placeholder="e.g., Python Programming Basics" class="input-field">
+            </div>
+            <div class="mb-4 text-center text-gray-600 font-medium">- OR -</div>
+            <div class="mb-4">
+                <label for="syllabusPdf" class="block text-gray-700 text-sm font-medium mb-2">Upload Syllabus PDF:</label>
+                <input type="file" id="syllabusPdf" accept=".pdf" class="block w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-blue-100 file:text-blue-700
+                    hover:file:bg-blue-200">
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label for="totalQuestionsSelect" class="block text-gray-700 text-sm font-medium mb-2">Total Number of Questions:</label>
+                    <select id="totalQuestionsSelect" class="select-field">
+                        <option value="10">10 Questions</option>
+                        <option value="20">20 Questions</option>
+                        <option value="30">30 Questions</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="difficultySelect" class="block text-gray-700 text-sm font-medium mb-2">Difficulty:</label>
+                    <select id="difficultySelect" class="select-field">
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                        <option value="basic">Basic</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- New: Question Type Checkboxes -->
+            <div class="mb-6">
+                <label class="block text-gray-700 text-sm font-medium mb-2">Question Types:</label>
+                <div class="flex flex-wrap gap-4">
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="mcqCheckbox" value="mcq" class="form-checkbox h-5 w-5 text-green-600 rounded focus:ring-green-500">
+                        <span class="ml-2 text-gray-700">Multiple Choice</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="subjectiveCheckbox" value="subjective" class="form-checkbox h-5 w-5 text-green-600 rounded focus:ring-green-500">
+                        <span class="ml-2 text-gray-700">Subjective</span>
+                    </label>
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" id="bothCheckbox" value="both" class="form-checkbox h-5 w-5 text-green-600 rounded focus:ring-green-500" checked>
+                        <span class="ml-2 text-gray-700">Both (MCQ & Subjective)</span>
+                    </label>
+                </div>
+            </div>
+
+            <button id="generateAssessmentBtn" class="
+                w-full flex items-center justify-center
+                bg-green-600 hover:bg-green-700 text-white font-semibold
+                py-2 px-6 rounded-full border-0 text-sm cursor-pointer
+                transition duration-300 ease-in-out shadow-md
+                focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50
+            ">
+                <span id="generateSpinner" class="loading-spinner hidden"></span>
+                Generate Assessment
+            </button>
+        </div>
+
+        <!-- Generated Questions Section -->
+        <div id="questionsSection" class="hidden">
+            <h2 class="section-title">Your Assessment Questions</h2>
+
+            <h3 class="text-xl font-semibold text-gray-700 mb-3" id="mcqSectionTitle">Multiple Choice Questions (MCQs)</h3>
+            <div id="mcqQuestions" class="space-y-4 mb-8">
+                <!-- MCQs will be loaded here -->
+                <p class="text-gray-500 text-center">No MCQs generated yet.</p>
+            </div>
+
+            <h3 class="text-xl font-semibold text-gray-700 mb-3" id="subjectiveSectionTitle">Subjective Questions</h3>
+            <div id="subjectiveQuestions" class="space-y-4 mb-8">
+                <!-- Subjective questions will be loaded here -->
+                <p class="text-gray-500 text-center">No subjective questions generated yet.</p>
+            </div>
+
+            <button id="evaluateAllBtn" class="
+                w-full flex items-center justify-center mt-6
+                bg-green-600 hover:bg-green-700 text-white font-semibold
+                py-2 px-6 rounded-full border-0 text-sm cursor-pointer
+                transition duration-300 ease-in-out shadow-md
+                focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50
+            ">
+                <span id="evaluateAllSpinner" class="loading-spinner hidden"></span>
+                Evaluate All Answers
+            </button>
+        </div>
+
+        <!-- Evaluation Section -->
+        <div id="evaluationSection" class="hidden mb-8 p-6 bg-green-50 rounded-xl shadow-inner">
+            <h2 class="section-title text-green-800">Evaluation Results Summary</h2>
+            <div id="evaluationResults" class="space-y-4">
+                <!-- Evaluation results will be displayed here -->
+                <p class="text-gray-500 text-center">Submit answers above to see evaluation.</p>
+            </div>
+        </div>
+
+        <!-- Plagiarism Checker Section -->
+        <div class="mb-8 p-6 bg-purple-50 rounded-xl shadow-inner">
+            <h2 class="section-title text-purple-800">Plagiarism Checker (Conceptual)</h2>
+            <p class="text-gray-700 mb-4">
+                This is a conceptual placeholder. A full plagiarism checker would compare against a vast database.
+                You can input an answer here and a corpus of text (comma-separated, for demonstration) to see basic similarity.
+            </p>
+            <div class="mb-4">
+                <label for="plagiarismAnswer" class="block text-gray-700 text-sm font-medium mb-2">Your Answer to Check:</label>
+                <textarea id="plagiarismAnswer" rows="4" placeholder="Enter the answer you want to check for plagiarism..." class="input-field-wide"></textarea>
+            </div>
+            <div class="mb-6">
+                <label for="plagiarismCorpus" class="block text-gray-700 text-sm font-medium mb-2">Comparison Corpus (comma-separated texts):</label>
+                <textarea id="plagiarismCorpus" rows="3" placeholder="e.g., text1, text2, another text" class="input-field-wide"></textarea>
+            </div>
+            <button id="checkPlagiarismBtn" class="
+                w-full flex items-center justify-center
+                bg-green-500 hover:bg-green-600 text-white font-semibold
+                py-2 px-4 rounded-full border-0 text-sm cursor-pointer
+                transition duration-300 ease-in-out shadow-sm
+                focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-50
+            ">
+                <span id="plagiarismSpinner" class="loading-spinner hidden"></span>
+                Check Plagiarism
+            </button>
+            <div id="plagiarismResult" class="mt-4 p-3 bg-white border border-gray-200 rounded-lg text-gray-800 hidden">
+                <p class="font-semibold text-gray-700 mb-2">Plagiarism Report:</p>
+                <div id="plagiarismReportContent" class="text-sm"></div>
+            </div>
+        </div>
+
+        <!-- Skill Gap & Recommendation Section -->
+        <div class="p-6 bg-yellow-50 rounded-xl shadow-inner">
+            <h2 class="section-title text-yellow-800">Skill Gap Analyzer & Test Recommender (Conceptual)</h2>
+            <p class="text-gray-700 mb-4">
+                This feature conceptually identifies skill gaps from your evaluated answers and recommends further tests or resources.
+                For demonstration, you can manually input some skill gaps to get recommendations.
+            </p>
+            <div class="mb-4">
+                <label for="skillGapsInput" class="block text-gray-700 text-sm font-medium mb-2">Identified Skill Gaps (comma-separated):</label>
+                <input type="text" id="skillGapsInput" placeholder="e.g., Data Structures, Recursion, Object-Oriented Design" class="input-field">
+            </div>
+            <div class="mb-6">
+                <label for="userProfileInput" class="block text-gray-700 text-sm font-medium mb-2">User Profile (JSON format, optional):</label>
+                <textarea id="userProfileInput" rows="2" placeholder='{"current_level": "intermediate", "learning_style": "visual"}' class="input-field-wide"></textarea>
+            </div>
+            <button id="recommendTestsBtn" class="
+                w-full flex items-center justify-center
+                bg-green-500 hover:bg-green-600 text-white font-semibold
+                py-2 px-4 rounded-full border-0 text-sm cursor-pointer
+                transition duration-300 ease-in-out shadow-sm
+                focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-50
+            ">
+                <span id="recommendSpinner" class="loading-spinner hidden"></span>
+                Get Recommendations
+            </button>
+            <div id="recommendationResult" class="mt-4 p-3 bg-white border border-gray-200 rounded-lg text-gray-800 hidden">
+                <p class="font-semibold text-gray-700 mb-2">Recommendations:</p>
+                <div id="recommendationContent" class="text-sm"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://127.0.0.1:5000'; // Explicitly point to Flask backend
+
+        const topicInput = document.getElementById('topicInput');
+        const syllabusPdf = document.getElementById('syllabusPdf');
+        const totalQuestionsSelect = document.getElementById('totalQuestionsSelect');
+        const difficultySelect = document.getElementById('difficultySelect');
+        const mcqCheckbox = document.getElementById('mcqCheckbox');
+        const subjectiveCheckbox = document.getElementById('subjectiveCheckbox');
+        const bothCheckbox = document.getElementById('bothCheckbox');
+        const generateAssessmentBtn = document.getElementById('generateAssessmentBtn');
+        const generateSpinner = document.getElementById('generateSpinner');
+
+        const questionsSection = document.getElementById('questionsSection');
+        const mcqSectionTitle = document.getElementById('mcqSectionTitle');
+        const subjectiveSectionTitle = document.getElementById('subjectiveSectionTitle');
+        const mcqQuestionsDiv = document.getElementById('mcqQuestions');
+        const subjectiveQuestionsDiv = document.getElementById('subjectiveQuestions');
+        const evaluateAllBtn = document.getElementById('evaluateAllBtn');
+        const evaluateAllSpinner = document.getElementById('evaluateAllSpinner');
+        const evaluationSection = document.getElementById('evaluationSection');
+        const evaluationResultsDiv = document.getElementById('evaluationResults');
+
+        const plagiarismAnswer = document.getElementById('plagiarismAnswer');
+        const plagiarismCorpus = document.getElementById('plagiarismCorpus');
+        const checkPlagiarismBtn = document.getElementById('checkPlagiarismBtn');
+        const plagiarismSpinner = document.getElementById('plagiarismSpinner');
+        const plagiarismResultDiv = document.getElementById('plagiarismResult');
+        const plagiarismReportContent = document.getElementById('plagiarismReportContent');
+
+        const skillGapsInput = document.getElementById('skillGapsInput');
+        const userProfileInput = document.getElementById('userProfileInput');
+        const recommendTestsBtn = document.getElementById('recommendTestsBtn');
+        const recommendSpinner = document.getElementById('recommendSpinner');
+        const recommendationResultDiv = document.getElementById('recommendationResult');
+        const recommendationContent = document.getElementById('recommendationContent');
+
+        const messageBox = document.getElementById('messageBox');
+
+        let generatedMCQs = [];
+        let generatedSubjective = [];
+
+        // Function to display messages (like alerts, but better UI)
+        function showMessage(message, type = 'success') {
+            messageBox.textContent = message;
+            messageBox.className = 'message-box'; // Reset classes
+            if (type === 'error') {
+                messageBox.classList.add('error');
+            } else {
+                messageBox.classList.add('success');
+            }
+            messageBox.style.display = 'block';
+            setTimeout(() => {
+                messageBox.style.display = 'none';
+            }, 5000); // Hide after 5 seconds
+        }
+
+        // --- Question Type Checkbox Logic ---
+        function updateCheckboxState() {
+            if (bothCheckbox.checked) {
+                mcqCheckbox.checked = true;
+                subjectiveCheckbox.checked = true;
+                mcqCheckbox.disabled = true; // Disable individual checkboxes when "Both" is selected
+                subjectiveCheckbox.disabled = true;
+            } else {
+                mcqCheckbox.disabled = false;
+                subjectiveCheckbox.disabled = false;
+            }
+
+            // Ensure at least one type is selected if "Both" is not checked
+            if (!bothCheckbox.checked && !mcqCheckbox.checked && !subjectiveCheckbox.checked) {
+                // If nothing is checked and "Both" is off, default to "Both" or prompt user
+                bothCheckbox.checked = true; // Re-check "Both" if user unchecks everything
+                updateCheckboxState(); // Re-run to disable others
+                showMessage("At least one question type must be selected. Defaulting to 'Both'.", 'error');
+            }
+        }
+
+        mcqCheckbox.addEventListener('change', () => {
+            if (mcqCheckbox.checked && subjectiveCheckbox.checked) {
+                bothCheckbox.checked = true;
+            } else {
+                bothCheckbox.checked = false;
+            }
+            updateCheckboxState();
+        });
+
+        subjectiveCheckbox.addEventListener('change', () => {
+            if (mcqCheckbox.checked && subjectiveCheckbox.checked) {
+                bothCheckbox.checked = true;
+            } else {
+                bothCheckbox.checked = false;
+            }
+            updateCheckboxState();
+        });
+
+        bothCheckbox.addEventListener('change', updateCheckboxState);
+
+        // Initial state update on load
+        updateCheckboxState();
+
+
+        // --- Assessment Generation ---
+        generateAssessmentBtn.addEventListener('click', async () => {
+            const topic = topicInput.value.trim();
+            const syllabusFile = syllabusPdf.files[0];
+            const totalQuestions = totalQuestionsSelect.value;
+            const difficulty = difficultySelect.value;
+
+            const selectedQuestionTypes = [];
+            if (mcqCheckbox.checked) selectedQuestionTypes.push(mcqCheckbox.value);
+            if (subjectiveCheckbox.checked) selectedQuestionTypes.push(subjectiveCheckbox.value);
+
+            if (selectedQuestionTypes.length === 0) {
+                 showMessage("Please select at least one question type (MCQ, Subjective, or Both).", 'error');
+                 return;
+            }
+
+
+            if (!topic && !syllabusFile) {
+                showMessage("Please enter a topic or upload a syllabus PDF.", 'error');
+                return;
+            }
+
+            // Reset UI for new generation
+            questionsSection.classList.add('hidden');
+            evaluationSection.classList.add('hidden');
+            mcqQuestionsDiv.innerHTML = '<p class="text-gray-500 text-center">No MCQs generated yet.</p>';
+            subjectiveQuestionsDiv.innerHTML = '<p class="text-gray-500 text-center">No subjective questions generated yet.</p>';
+            evaluationResultsDiv.innerHTML = '<p class="text-gray-500 text-center">Submit answers above to see evaluation.</p>';
+            evaluateAllBtn.classList.add('hidden'); // Hide evaluate button until questions are displayed
+
+            // Hide/Show question sections based on selected types before generation
+            mcqSectionTitle.classList.add('hidden');
+            mcqQuestionsDiv.classList.add('hidden');
+            subjectiveSectionTitle.classList.add('hidden');
+            subjectiveQuestionsDiv.classList.add('hidden');
+            if (selectedQuestionTypes.includes('mcq')) {
+                mcqSectionTitle.classList.remove('hidden');
+                mcqQuestionsDiv.classList.remove('hidden');
+            }
+            if (selectedQuestionTypes.includes('subjective')) {
+                subjectiveSectionTitle.classList.remove('hidden');
+                subjectiveQuestionsDiv.classList.remove('hidden');
+            }
+
+
+            generateSpinner.classList.remove('hidden');
+            generateAssessmentBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('total_questions', totalQuestions);
+            formData.append('difficulty', difficulty);
+            formData.append('question_types', JSON.stringify(selectedQuestionTypes));
+
+            if (topic) {
+                formData.append('topic', topic);
+            }
+            if (syllabusFile) {
+                formData.append('syllabus_pdf', syllabusFile);
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/generate_assessment`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    showMessage("Assessment generated successfully!");
+                    questionsSection.classList.remove('hidden');
+                    evaluateAllBtn.classList.remove('hidden');
+
+                    generatedMCQs = parseMCQs(data.mcqs);
+                    generatedSubjective = parseSubjectiveQuestions(data.subjective_questions);
+
+                    displayMCQs(generatedMCQs);
+                    displaySubjectiveQuestions(generatedSubjective);
+
+                    if (generatedMCQs.length === 0 && generatedSubjective.length === 0) {
+                        showMessage("No questions were generated. The AI might not have understood the request or the topic.", 'error');
+                        questionsSection.classList.add('hidden');
+                    }
+
+                    topicInput.value = '';
+                    syllabusPdf.value = '';
+                    if (syllabusPdf.files && syllabusPdf.files.length > 0) {
+                        syllabusPdf.type = 'text';
+                        syllabusPdf.type = 'file';
+                    }
+
+                } else {
+                    showMessage(`Error generating assessment: ${data.error || response.statusText}`, 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showMessage('An unexpected error occurred while generating assessment.', 'error');
+            } finally {
+                generateSpinner.classList.add('hidden');
+                generateAssessmentBtn.disabled = false;
+            }
+        });
+
+        function parseMCQs(mcqText) {
+            const mcqs = [];
+            const mcqBlocks = mcqText.split(/(?:\n|^)Q\d+\.\s*/).filter(block => block.trim() !== '');
+
+            mcqBlocks.forEach((block, index) => {
+                const lines = block.split('\n').map(line => line.trim()).filter(line => line !== '');
+                if (lines.length >= 5) {
+                    const questionText = lines[0].replace(/^Q\d+\.\s*/, '').trim(); 
+                    const options = {};
+                    let correctAnswer = '';
+
+                    for (let i = 1; i < lines.length; i++) {
+                        if (lines[i].startsWith('A.')) options.A = lines[i].substring(2).trim();
+                        else if (lines[i].startsWith('B.')) options.B = lines[i].substring(2).trim();
+                        else if (lines[i].startsWith('C.')) options.C = lines[i].substring(2).trim();
+                        else if (lines[i].startsWith('D.')) options.D = lines[i].substring(2).trim();
+                        else if (lines[i].startsWith('Correct Answer:')) {
+                            correctAnswer = lines[i].replace('Correct Answer:', '').trim();
+                        }
+                    }
+
+                    if (Object.keys(options).length === 4 && correctAnswer) {
+                        mcqs.push({
+                            question_id: `mcq_${index + 1}`,
+                            question_text: `Q${index + 1}. ${questionText}`,
+                            options: options,
+                            correct_answer: correctAnswer
+                        });
+                    } else {
+                        console.warn("Skipping malformed MCQ block:", block);
+                        console.warn("Parsed: Q:", questionText, "Options:", options, "Correct:", correctAnswer);
+                    }
+                } else {
+                    console.warn("Skipping incomplete MCQ block (not enough lines):", block);
+                }
+            });
+            return mcqs;
+        }
+
+        function displayMCQs(mcqs) {
+            mcqQuestionsDiv.innerHTML = '';
+            if (mcqs.length === 0) {
+                mcqQuestionsDiv.innerHTML = '<p class="text-gray-500 text-center">No MCQs generated.</p>';
+                return;
+            }
+            mcqs.forEach(mcq => {
+                const mcqCard = document.createElement('div');
+                mcqCard.className = 'card';
+                mcqCard.innerHTML = `
+                    <p class="font-semibold mb-2">${mcq.question_text}</p>
+                    <div class="space-y-2 mb-3" data-question-id="${mcq.question_id}">
+                        ${Object.keys(mcq.options).map(key => `
+                            <label class="block cursor-pointer">
+                                <input type="radio" name="mcq_answer_${mcq.question_id}" value="${key}" class="mr-2">
+                                <span class="text-gray-700">${key}. ${mcq.options[key]}</span>
+                            </label>
+                        `).join('')}
+                    </div>
+                `;
+                mcqQuestionsDiv.appendChild(mcqCard);
+            });
+        }
+
+        function parseSubjectiveQuestions(subjectiveText) {
+            const subjectiveQ = [];
+            const qBlocks = subjectiveText.split(/(?:\n|^)Q\d+\.\s*/).filter(block => block.trim() !== '');
+
+            qBlocks.forEach((block, index) => {
+                const lines = block.split('\n').map(line => line.trim()).filter(line => line !== '');
+                if (lines.length >= 2) {
+                    const questionText = lines[0].replace(/^Q\d+\.\s*/, '').trim(); 
+                    let rubric = '';
+                    for (let i = 1; i < lines.length; i++) {
+                        if (lines[i].startsWith('Rubric:')) {
+                            rubric = lines[i].substring(7).trim();
+                            break;
+                        }
+                    }
+                    if (questionText && rubric) {
+                        subjectiveQ.push({
+                            question_id: `subj_${index + 1}`,
+                            question_text: `Q${index + 1}. ${questionText}`,
+                            rubric: rubric
+                        });
+                    } else {
+                        console.warn("Skipping malformed Subjective block:", block);
+                    }
+                } else {
+                    console.warn("Skipping incomplete Subjective block (not enough lines):", block);
+                }
+            });
+            return subjectiveQ;
+        }
+
+        function displaySubjectiveQuestions(subjectiveQs) {
+            subjectiveQuestionsDiv.innerHTML = '';
+            if (subjectiveQs.length === 0) {
+                subjectiveQuestionsDiv.innerHTML = '<p class="text-gray-500 text-center">No subjective questions generated.</p>';
+                return;
+            }
+            subjectiveQs.forEach(sq => {
+                const sqCard = document.createElement('div');
+                sqCard.className = 'card';
+                // IMPORTANT: Changed rows to 10 for even more height, and added 'w-full' to textarea explicitly
+                sqCard.innerHTML = `
+                    <p class="font-semibold mb-2">${sq.question_text}</p>
+                    <textarea id="answer_${sq.question_id}" rows="10" placeholder="Type your answer here..." class="input-field-wide w-full mb-3"></textarea>
+                `;
+                subjectiveQuestionsDiv.appendChild(sqCard);
+            });
+        }
+
+        // --- Evaluate All Answers ---
+        evaluateAllBtn.addEventListener('click', async () => {
+            evaluateAllSpinner.classList.remove('hidden');
+            evaluateAllBtn.disabled = true;
+            evaluationResultsDiv.innerHTML = '';
+            evaluationSection.classList.remove('hidden');
+
+            let allEvaluations = [];
+            let skillGapsFound = new Set();
+
+            // Evaluate MCQs
+            for (const mcq of generatedMCQs) {
+                const selectedOption = document.querySelector(`input[name="mcq_answer_${mcq.question_id}"]:checked`);
+                const userChoice = selectedOption ? selectedOption.value : '';
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/evaluate_answer`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            question_text: mcq.question_text,
+                            user_answer: userChoice,
+                            question_type: 'mcq',
+                            correct_answer: mcq.correct_answer
+                        })
+                    });
+                    const data = await response.json();
+                    if (response.ok) {
+                        allEvaluations.push({ question_text: mcq.question_text, type: 'mcq', ...data });
+                    } else {
+                        allEvaluations.push({ question_text: mcq.question_text, type: 'mcq', score: 'Error', feedback: data.error || response.statusText, skill_gap: 'N/A', solution_highlights: 'N/A' });
+                    }
+                } catch (error) {
+                    console.error(`Error evaluating MCQ ${mcq.question_id}:`, error);
+                    allEvaluations.push({ question_text: mcq.question_text, type: 'mcq', score: 'Error', feedback: 'Network error during evaluation.', skill_gap: 'N/A', solution_highlights: 'N/A' });
+                }
+            }
+
+            // Evaluate Subjective Questions
+            for (const subj of generatedSubjective) {
+                const user_answer = document.getElementById(`answer_${subj.question_id}`).value.trim();
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/evaluate_answer`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            question_text: subj.question_text,
+                            user_answer: user_answer,
+                            question_type: 'subjective',
+                            rubric: subj.rubric
+                        })
+                    });
+                    const data = await response.json();
+                    if (response.ok) {
+                        allEvaluations.push({ question_text: subj.question_text, type: 'subjective', ...data });
+                        if (data.skill_gap && data.skill_gap !== 'N/A' && data.skill_gap.toLowerCase() !== 'not applicable' && data.skill_gap.toLowerCase() !== 'no answer provided') {
+                            skillGapsFound.add(data.skill_gap);
+                        }
+                    } else {
+                        allEvaluations.push({ question_text: subj.question_text, type: 'subjective', score: 'Error', feedback: data.error || response.statusText, skill_gap: 'N/A', solution_highlights: 'N/A' });
+                    }
+                } catch (error) {
+                    console.error(`Error evaluating Subjective Q ${subj.question_id}:`, error);
+                    allEvaluations.push({ question_text: subj.question_text, type: 'subjective', score: 'Error', feedback: 'Network error during evaluation.', skill_gap: 'N/A', solution_highlights: 'N/A' });
+                }
+            }
+
+            // Display all evaluations
+            if (allEvaluations.length > 0) {
+                allEvaluations.forEach(evalData => evaluationResultsDiv.appendChild(createEvaluationResultCard(evalData, evalData.question_text, evalData.type)));
+                showMessage("All answers evaluated!");
+            } else {
+                evaluationResultsDiv.innerHTML = '<p class="text-gray-500 text-center">No questions were evaluated.</p>';
+                showMessage("No answers submitted or questions to evaluate.", 'error');
+            }
+
+            // Populate skill gaps for recommendation section
+            if (skillGapsFound.size > 0) {
+                skillGapsInput.value = Array.from(skillGapsFound).join(', ');
+            } else {
+                skillGapsInput.value = '';
+            }
+
+            evaluateAllSpinner.classList.add('hidden');
+            evaluateAllBtn.disabled = false;
+        });
+
+
+        function createEvaluationResultCard(evaluationData, question_text, type) {
+            const resultCard = document.createElement('div');
+            resultCard.className = 'card bg-white p-4 shadow-md';
+
+            let content = `<p class="font-bold text-lg mb-2">Evaluation for ${type === 'mcq' ? 'MCQ' : 'Subjective Question'}:</p>`;
+            content += `<p class="text-gray-700 mb-2"><strong>Question:</strong> ${question_text}</p>`;
+
+            if (type === 'mcq') {
+                content += `<p class="font-semibold ${evaluationData.score === 'Correct' ? 'text-green-700' : 'text-red-700'}">${evaluationData.feedback}</p>`;
+                if (evaluationData.solution_highlights && evaluationData.solution_highlights !== 'N/A') {
+                    content += `<p class="text-sm mt-1"><strong>Solution:</strong> ${evaluationData.solution_highlights}</p>`;
+                }
+            } else if (type === 'subjective') {
+                content += `<p><span class="font-semibold">Score:</span> ${evaluationData.score}</p>`;
+                content += `<p><span class="font-semibold">Feedback:</span> ${evaluationData.feedback}</p>`;
+                content += `<p><span class="font-semibold">Skill Gap:</span> ${evaluationData.skill_gap}</p>`;
+                if (evaluationData.solution_highlights && evaluationData.solution_highlights !== 'N/A') {
+                    content += `<p class="text-sm mt-1"><strong>Correct Approach:</strong> ${evaluationData.solution_highlights}</p>`;
+                }
+            }
+            resultCard.innerHTML = content;
+            return resultCard;
+        }
+
+        // --- Plagiarism Checker ---
+        checkPlagiarismBtn.addEventListener('click', async () => {
+            const user_answer = plagiarismAnswer.value.trim();
+            const corpusText = plagiarismCorpus.value.trim();
+            const known_corpus = corpusText ? corpusText.split(',').map(s => s.trim()) : [];
+
+            if (!user_answer) {
+                showMessage("Please enter an answer to check for plagiarism.", 'error');
+                return;
+            }
+
+            plagiarismSpinner.classList.remove('hidden');
+            checkPlagiarismBtn.disabled = true;
+            plagiarismResultDiv.classList.add('hidden');
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/check_plagiarism`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_answer, known_corpus })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    plagiarismResultDiv.classList.remove('hidden');
+                    plagiarismReportContent.innerText = data.plagiarism_report;
+                    showMessage("Plagiarism check completed.");
+                } else {
+                    showMessage(`Error checking plagiarism: ${data.error || response.statusText}`, 'error');
+                    plagiarismReportContent.innerText = `Error: ${data.error || response.statusText}`;
+                    plagiarismResultDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                    console.error('Error checking plagiarism:', error);
+                    showMessage('An unexpected error occurred during plagiarism check.', 'error');
+            } finally {
+                plagiarismSpinner.classList.add('hidden');
+                checkPlagiarismBtn.disabled = false;
+            }
+        });
+
+        // --- Recommendations ---
+        recommendTestsBtn.addEventListener('click', async () => {
+            const skillGapsText = skillGapsInput.value.trim();
+            const skill_gaps = skillGapsText ? skillGapsText.split(',').map(s => s.trim()) : [];
+            let user_profile = {};
+            try {
+                user_profile = userProfileInput.value.trim() ? JSON.parse(userProfileInput.value.trim()) : {};
+            } catch (e) {
+                showMessage("Invalid JSON for User Profile. Please correct it.", 'error');
+                return;
+            }
+
+            recommendSpinner.classList.remove('hidden');
+            recommendTestsBtn.disabled = true;
+            recommendationResultDiv.classList.add('hidden');
+
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/recommend_tests`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ skill_gaps, user_profile })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    recommendationResultDiv.classList.remove('hidden');
+                    recommendationContent.innerText = data.recommendations;
+                    showMessage("Recommendations generated.");
+                } else {
+                    showMessage(`Error getting recommendations: ${data.error || response.statusText}`, 'error');
+                    recommendationContent.innerText = `Error: ${data.error || response.statusText}`;
+                    recommendationResultDiv.classList.remove('hidden');
+                }
+            } catch (error) {
+                console.error('Error getting recommendations:', error);
+                showMessage('An unexpected error occurred during recommendation generation.', 'error');
+            } finally {
+                recommendSpinner.classList.add('hidden');
+                recommendTestsBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
